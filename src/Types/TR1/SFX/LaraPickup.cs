@@ -13,20 +13,40 @@ namespace TRXInjectionTool.Types.TR1.SFX
     {
         public override List<InjectionData> Build()
         {
-            TR1Level caves = _control1.Read($"Resources/{TR1LevelNames.CAVES}");
+            // Leggiamo un livello TR1 che ha molti sound — Vilcabamba ne ha tanti
+            TR1Level caves = _control1.Read($"Resources/{TR1LevelNames.VILCABAMBA}");
+
+            // Copiamo i metadata da un sample esistente simile (LaraKey = ID 39, SAMPLE_MODE_NORMAL)
+            TR1SoundEffect existing = caves.SoundEffects[TR1SFX.LaraKey];
             TR1SoundEffect fx = new()
             {
-                Chance = 0,
-                Volume = 0xFF,
-                Samples = new()
-            {
-                File.ReadAllBytes("Resources/TR1/SFX/pickup.wav"),
-            },
+                Chance = existing.Chance,
+                Volume = existing.Volume,
+                // Sostituiamo solo il WAV con il nostro "Aha"
+                Samples = new() { File.ReadAllBytes("Resources/TR1/SFX/pickup.wav") },
             };
-            ResetLevel(caves);
+
+            // Assegniamo al nostro ID target nel SoundMap del livello
+            // NON resettiamo il livello — lasciamo il SoundMap intatto
             caves.SoundEffects[(TR1SFX)62] = fx;
 
-            InjectionData data = InjectionData.Create(caves, InjectionType.General, "lara_pickup_sfx");
+            // Creiamo il bin con removeMeshData=true per tenere solo i sample
+            InjectionData data = InjectionData.Create(caves, InjectionType.General, "lara_pickup_sfx", true);
+
+            // Teniamo solo i dati SFX, puliamo tutto il resto
+            data.Animations.Clear();
+            data.AnimFrames.Clear();
+            data.AnimChanges.Clear();
+            data.AnimDispatches.Clear();
+            data.AnimCommands.Clear();
+            data.Models.Clear();
+            data.Images.Clear();
+            data.ObjectTextures.Clear();
+            data.SpriteSequences.Clear();
+            data.SpriteTextures.Clear();
+            data.StaticObjects.Clear();
+            data.CinematicFrames.Clear();
+
             return new() { data };
         }
     }

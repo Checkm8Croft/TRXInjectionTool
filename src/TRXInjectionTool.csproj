@@ -42,7 +42,7 @@
   <ItemGroup>
     <Folder Include="Resources\Published\" />
     <Folder Include="Resources\TR1\SFX\" />
-    <Folder Include="Types\TR3\SFX\" />
+    <Folder Include="Resources\TR3\SFX\" />
   </ItemGroup>
 
 </Project>

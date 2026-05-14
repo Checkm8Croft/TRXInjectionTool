@@ -16,11 +16,11 @@ public class TR3CutsceneBuilder : InjectionBuilder
         new(TR3LevelNames.COASTAL_CUT, 16384, [TR3Type.CutsceneActor1]),
         new(TR3LevelNames.CRASH_CUT, 16384, []),
         new(TR3LevelNames.THAMES_CUT, -16384, [TR3Type.CutsceneActor7], postAction: AmendThamesCut),
-        new(TR3LevelNames.LUDS_CUT, 16384, [], postAction: AmendLudsCut),
+        new(TR3LevelNames.LUDS_CUT, 16384, [TR3Type.CutsceneActor5], postAction: AmendLudsCut),
         new(TR3LevelNames.NEVADA_CUT, 16384, []),
         new(TR3LevelNames.HSC_CUT, 16384, [], postAction: AmendHSCCut),
         new(TR3LevelNames.ANTARC_CUT, 16384, [TR3Type.CutsceneActor8]),
-        new(TR3LevelNames.TINNOS_CUT, 16384, [TR3Type.CutsceneActor1, TR3Type.CutsceneActor4]),
+        new(TR3LevelNames.TINNOS_CUT, 16384, [TR3Type.CutsceneActor1, TR3Type.CutsceneActor3, TR3Type.CutsceneActor4]),
     ];
 
     public override string ID => "tr3_cutscenes";
@@ -153,6 +153,10 @@ public class TR3CutsceneBuilder : InjectionBuilder
             {
                 FixLudsLaraFrames(level.Models[TR3Type.Lara]);
             }
+            else if (levelName == TR3LevelNames.TINNOS_CUT)
+            {
+                FixTinnosFrames(level.Models[TR3Type.CutsceneActor3]);
+            }
 
             CreateModelLevel(level, actors);
             level.SoundEffects.Clear();
@@ -231,6 +235,39 @@ public class TR3CutsceneBuilder : InjectionBuilder
                 frame.Bounds.MaxX += shift;
                 frame.Bounds.MinX += shift;
                 frame.Rotations[14] = new();
+            }
+        }
+
+        private static void FixTinnosFrames(TRModel model)
+        {
+            for (int i = 0; i < model.Animations.Count; i++)
+            {
+                var anim = model.Animations[i];
+                for (int j = 0; j < anim.Frames.Count; j++)
+                {
+                    var frame = anim.Frames[j];
+                    frame.Bounds.MinX = -5000;
+                    frame.Bounds.MaxX = 5000;
+                    if (i == 3 && j < 37)
+                    {                        
+                        frame.Bounds.MinZ = -11000;
+                        frame.Bounds.MaxZ = -7000;
+                        frame.Bounds.MinY = -2560;
+                        frame.Bounds.MaxY = 0;
+                    }
+                    else if (i == 8 && j >= 340)
+                    {
+                        frame.Bounds.MinZ = 7000;
+                        frame.Bounds.MaxZ = 11000;
+                        frame.Bounds.MinY = -2560;
+                        frame.Bounds.MaxY = 0;
+                    }
+                    else
+                    {
+                        frame.Bounds.MinZ = -5000;
+                        frame.Bounds.MaxZ = 5000;
+                    }
+                }
             }
         }
     }

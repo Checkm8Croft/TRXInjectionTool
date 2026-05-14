@@ -46,6 +46,7 @@ public class InjectionData
     public List<TRSpriteEdit> SpriteEdits { get; set; } = [];
     public List<TRObjectTypeEdit> ObjectTypeEdits { get; set; } = [];
     public List<TRAnimEdit> AnimEdits { get; set; } = [];
+    public List<TRAnimTextureEdit> AnimTextureEdits { get; set; } = [];
 
     private readonly HashSet<uint> _meshOnlyModels = [];
 
@@ -288,7 +289,9 @@ public class InjectionData
                 ID = soundID,
                 Chance = details.Chance,
                 Characteristics = (ushort)details.Characteristics,
-                Volume = details.Volume,
+                Volume = (ushort)(details.Volume << 7),
+                Pitch = details.Pitch,
+                Range = details.Range,
                 SampleOffset = level.SampleIndices[details.Sample],
             });
         }

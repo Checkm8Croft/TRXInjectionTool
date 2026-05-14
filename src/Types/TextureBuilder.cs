@@ -740,15 +740,30 @@ public abstract class TextureBuilder : InjectionBuilder
         }
     }
 
-    protected static void FixPushButton(InjectionData data)
+    protected static void FixPushButton(InjectionData data, string baseLevelName = TR2LevelNames.ASSAULT)
     {
         var level = _control2.Read($"Resources/{TR2LevelNames.ASSAULT}");
+        TR2Type type;
+        TRModel model;
+        if (data.GameVersion == TRGameVersion.TR3)
+        {
+            var sourceLevel = _control3.Read($"Resources/TR3/{baseLevelName}");
+            type = (TR2Type)TR3Type.PushButtonSwitch;
+            model = sourceLevel.Models[TR3Type.PushButtonSwitch];
+        }
+        else
+        {
+            type = TR2Type.PushButtonSwitch;
+            model = level.Models[TR2Type.PushButtonSwitch];
+        }
+
+
         level.Models = new()
         {
-            [TR2Type.PushButtonSwitch] = level.Models[TR2Type.PushButtonSwitch],
+            [type] = model,
         };
 
-        foreach (var frame in level.Models[TR2Type.PushButtonSwitch].Animations.SelectMany(a => a.Frames))
+        foreach (var frame in model.Animations.SelectMany(a => a.Frames))
         {
             frame.OffsetZ += 18;
             frame.Bounds.MinZ += 18;
@@ -996,6 +1011,28 @@ public abstract class TextureBuilder : InjectionBuilder
             // Ensure double-sided faces use their own vertices, and flip their normals for proper lighting.
             model.Meshes = [.. model.Meshes.Select(WindowVertexUntangler.UntangleFaces)];
             model.Animations.Clear();
+        }
+    }
+
+    protected static void FixTR2Propeller(TR2Level level)
+    {
+        var mesh = level.Models[TR2Type.AirplanePropeller].Meshes[0];
+        var verts = new Dictionary<ushort, ushort>
+        {
+            [12] = 13,
+            [20] = 21,
+            [13] = 6,
+            [21] = 14,
+        };
+        var faces = mesh.TexturedTriangles.FindAll(f => f.Vertices.All(verts.ContainsKey));
+        foreach (var face in faces)
+        {
+            mesh.TexturedTriangles.Add(new()
+            {
+                Type = TRFaceType.Triangle,
+                Texture = face.Texture,
+                Vertices = [.. face.Vertices.Select(v => verts[v])],
+            });
         }
     }
 

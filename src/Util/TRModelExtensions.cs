@@ -1,5 +1,4 @@
-﻿using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using TRLevelControl;
 using TRLevelControl.Model;
 using TRXInjectionTool.Control;
@@ -145,11 +144,12 @@ public static class TRModelExtensions
         [
             (int)TR2Type.FontGraphicsSmall_S_H, (int)TR2Type.PickupAid, (int)TR1Type.Magnums_S_P,
             (int)TR1Type.MagnumAmmo_S_P, (int)TR2Type.Deagle_S_P, (int)TR2Type.DeagleAmmo_S_P,
-            (int)TR2Type.Snowflake_S_H, (int)TR2Type.Shadow_S_H,
+            (int)TR2Type.Snowflake_S_H, (int)TR2Type.Shadow_S_H, 337,
         ],
         [TRGameVersion.TR3] =
         [
-            (int)TR3Type.FontGraphicsSmall_S_H, (int)TR3Type.Snowflake_S_H,
+            (int)TR3Type.FontGraphicsSmall_S_H, (int)TR3Type.Snowflake_S_H, 
+            428, // Pickup aid, TODO: add to TRLevelControl
         ],
     };
 

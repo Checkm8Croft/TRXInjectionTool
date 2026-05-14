@@ -10,12 +10,13 @@ public class TR3HallowsTextureBuilder : TextureBuilder
     {
         var data = CreateBaseData();
         CreateDefaultTests(data, $"TR3/{TR3LevelNames.HALLOWS}");
+        FixPushButton(data, TR3LevelNames.HALLOWS);
         return [data];
     }
 
     private static InjectionData CreateBaseData()
     {
-        var level = _control3.Read($"Resources/TR3/{TR3LevelNames.CITY}");
+        var level = _control3.Read($"Resources/TR3/{TR3LevelNames.NEVADA}");
         CreateModelLevel(level, TR3Type.EyeOfIsis_M_H);
         level.SoundEffects.Clear();
 

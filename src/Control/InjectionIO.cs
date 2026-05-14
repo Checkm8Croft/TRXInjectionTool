@@ -12,7 +12,7 @@ public static class InjectionIO
     private static readonly InjectionVersion _version = new()
     {
         Magic = IOUtils.MakeTag('T', 'R', 'X', 'J'),
-        Iteration = 6,
+        Iteration = 7,
     };
 
     public static void Export(InjectionData data, string file)
@@ -236,6 +236,9 @@ public static class InjectionIO
 
         blockCount += WriteBlock(BlockType.TextureEdits, data.TextureOverwrites.Count, writer,
             s => data.TextureOverwrites.ForEach(t => t.Serialize(s)));
+
+        blockCount += WriteBlock(BlockType.AnimTexEdits, data.AnimTextureEdits.Count, writer,
+            s => data.AnimTextureEdits.ForEach(t => t.Serialize(s)));
 
         {
             // Summary data

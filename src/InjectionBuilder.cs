@@ -1,5 +1,4 @@
-﻿using Newtonsoft.Json;
-using System.Drawing;
+﻿using System.Drawing;
 using TRDataControl;
 using TRImageControl;
 using TRImageControl.Packing;
@@ -353,21 +352,30 @@ public abstract class InjectionBuilder
         return caves;
     }
 
-    protected static TR2Level CreateWinstonLevel(string levelName)
+    protected static TR2Level CreateTR2WinstonLevel(string levelName)
     {
-        TR2Level level = _control2.Read($"Resources/{levelName}");
+        var level = _control2.Read($"Resources/{levelName}");
         CreateModelLevel(level, TR2Type.Winston);
+        FixWinstonNose(level.Models[TR2Type.Winston]);
+        return level;
+    }
 
-        // Fix Winston's nose
-        var model = level.Models[TR2Type.Winston];
+    protected static TR3Level CreateTR3WinstonLevel(string levelName)
+    {
+        var level = _control3.Read($"Resources/TR3/{levelName}");
+        CreateModelLevel(level, TR3Type.Winston);
+        FixWinstonNose(level.Models[TR3Type.Winston]);
+        return level;
+    }
+
+    private static void FixWinstonNose(TRModel model)
+    {
         model.Meshes[25].TexturedTriangles.Add(new()
         {
             Type = TRFaceType.Triangle,
-            Vertices = new() { 24, 22, 25 },
+            Vertices = [24, 22, 25],
             Texture = model.Meshes[25].TexturedRectangles[9].Texture,
         });
-
-        return level;
     }
 
     protected static void PackTextures(TR1Level dataLevel, TRLevelBase sourceLevel, TRModel sky, Dictionary<string, string> regionMap)
@@ -521,16 +529,6 @@ public abstract class InjectionBuilder
         };
     }
 
-    protected static T DeserializeFile<T>(string path)
-    {
-        return Deserialize<T>(File.ReadAllText(path));
-    }
-
-    protected static T Deserialize<T>(string data)
-    {
-        return JsonConvert.DeserializeObject<T>(data);
-    }
-
     public static string MakeOutputPath(InjectionData data)
     {
         return MakeOutputPath(data.GameVersion, $"{data.Name}.bin");
@@ -542,6 +540,30 @@ public abstract class InjectionBuilder
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
         return fullPath;
     }
+
+    protected static readonly Dictionary<string, string> _tr1NameMap = new()
+    {
+        [TR1LevelNames.ASSAULT] = "gym",
+        [TR1LevelNames.CAVES] = "caves",
+        [TR1LevelNames.VILCABAMBA] = "vilcabamba",
+        [TR1LevelNames.VALLEY] = "valley",
+        [TR1LevelNames.QUALOPEC] = "qualopec",
+        [TR1LevelNames.FOLLY] = "folly",
+        [TR1LevelNames.COLOSSEUM] = "colosseum",
+        [TR1LevelNames.MIDAS] = "midas",
+        [TR1LevelNames.CISTERN] = "cistern",
+        [TR1LevelNames.TIHOCAN] = "tihocan",
+        [TR1LevelNames.KHAMOON] = "khamoon",
+        [TR1LevelNames.OBELISK] = "obelisk",
+        [TR1LevelNames.SANCTUARY] = "sanctuary",
+        [TR1LevelNames.MINES] = "mines",
+        [TR1LevelNames.ATLANTIS] = "atlantis",
+        [TR1LevelNames.PYRAMID] = "pyramid",
+        [TR1LevelNames.EGYPT] = "egypt",
+        [TR1LevelNames.CAT] = "cat",
+        [TR1LevelNames.STRONGHOLD] = "stronghold",
+        [TR1LevelNames.HIVE] = "hive",
+    };
 
     protected static readonly Dictionary<string, string> _tr2NameMap = new()
     {
@@ -597,7 +619,7 @@ public abstract class InjectionBuilder
         [TR3LevelNames.FLING] = "scotland",
         [TR3LevelNames.LAIR] = "willsden",
         [TR3LevelNames.CLIFF] = "cliff",
-        [TR3LevelNames.FISHES] = "fishes",
+        [TR3LevelNames.FISHES] = "undersea",
         [TR3LevelNames.MADHOUSE] = "zoo",
         [TR3LevelNames.REUNION] = "reunion",
     };

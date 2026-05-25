@@ -195,6 +195,19 @@ public abstract class FDBuilder : InjectionBuilder
         };
     }
 
+    public static TRFloorDataEdit MakeSlant
+        (TR3Level level, short room, ushort x, ushort z, sbyte xSlant, sbyte zSlant, FDSlantType type = FDSlantType.Floor)
+    {
+        var sector = level.Rooms[room].GetSector(x, z, TRUnit.Sector);
+        return new()
+        {
+            RoomIndex = room,
+            X = x,
+            Z = z,
+            Fixes = [MakeSlantFix(sector, level.FloorData, xSlant, zSlant, type)],
+        };
+    }
+
     protected static FDTrigCreateFix MakeSlantFix
         (TRRoomSector sector, FDControl floorData, sbyte xSlant, sbyte zSlant, FDSlantType type = FDSlantType.Floor)
     {
@@ -243,6 +256,7 @@ public abstract class FDBuilder : InjectionBuilder
                 Fixes = [new FDRoomProperties
                 {
                     Flags = add ? (rooms[r].Flags | flag) : (rooms[r].Flags & ~flag),
+                    Reverb = rooms[r] is TR3Room room3 ? room3.ReverbMode : TRPSXReverbMode.Outside,
                 }]
             });
     }

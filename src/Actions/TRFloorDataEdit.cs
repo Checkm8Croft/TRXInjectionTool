@@ -40,6 +40,16 @@ public enum FDFixType
     ClimbInsert,
     TrigDelete,
     Triangulation,
+    MineCart,
+    Material,
+}
+
+public enum MineCartType
+{
+    None,
+    Left,
+    Right,
+    Stop,
 }
 
 public abstract class FDFix
@@ -168,10 +178,12 @@ public class FDRoomProperties : FDFix
 {
     public override FDFixType FixType => FDFixType.RoomProperties;
     public TRRoomFlag Flags { get; set; }
+    public TRPSXReverbMode Reverb { get; set; }
 
     protected override void SerializeImpl(TRLevelWriter writer, TRGameVersion version)
     {
         writer.Write((ushort)Flags);
+        writer.Write((byte)Reverb);
     }
 }
 
@@ -275,6 +287,28 @@ public class FDTrigDelete : FDFix
 
     protected override void SerializeImpl(TRLevelWriter writer, TRGameVersion version)
     {
+    }
+}
+
+public class FDMineCartEdit : FDFix
+{
+    public override FDFixType FixType => FDFixType.MineCart;
+    public MineCartType Type { get; set; }
+
+    protected override void SerializeImpl(TRLevelWriter writer, TRGameVersion version)
+    {
+        writer.Write((int)Type);
+    }
+}
+
+public class FDMaterialEdit : FDFix
+{
+    public override FDFixType FixType => FDFixType.Material;
+    public TRMaterial Material { get; set; }
+
+    protected override void SerializeImpl(TRLevelWriter writer, TRGameVersion version)
+    {
+        writer.Write((byte)Material);
     }
 }
 

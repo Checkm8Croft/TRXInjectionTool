@@ -79,14 +79,18 @@ public class TR3LaraAnimBuilder : LaraBuilder
 
     public override byte[] Publish()
     {
-        var level = CreateLevel();
+        var level = CreateLevel(true);
         var extraLevel = CreateExtraLevel();
         return ExportLaraWAD(level, extraLevel);
     }
 
-    private TR3Level CreateLevel()
+    private TR3Level CreateLevel(bool useSkin = false)
     {
         var jungle = _control3.Read($"Resources/{TR3LevelNames.JUNGLE}");
+        if (useSkin)
+        {
+            jungle.Models[TR3Type.Lara].Meshes = jungle.Models[TR3Type.LaraSkin_H].Meshes;
+        }
         ResetLevel(jungle);
         var tr3Lara = jungle.Models[TR3Type.Lara];
         
@@ -104,8 +108,11 @@ public class TR3LaraAnimBuilder : LaraBuilder
         ImportCrawlJumpDown(tr3Lara, InjState.CrawlJumpDown, InjAnim.CrawlJumpDown, TR3LaraAnim.CrawlIdle);
         ImportCrouchTurn(tr3Lara, InjState.CrouchTurnLeft, InjAnim.CrouchTurnLeft, 
             InjState.CrouchTurnRight, InjAnim.CrouchTurnRight,
-            TR3LaraState.CrouchIdle, TR3LaraAnim.CrouchIdle);
+            TR3LaraState.CrouchIdle, TR3LaraAnim.CrouchIdle,
+            TR3LaraAnim.CrouchToStand, TR3LaraState.CrouchRoll, TR3LaraAnim.CrouchRollForwardStart,
+            TR3LaraState.CrawlIdle, TR3LaraAnim.CrouchToCrawlStart);
         FixVaulting(tr3Lara);
+        FixCrouchRoll(tr3Lara, TR3LaraAnim.CrouchRollForwardEnd);
 
         AlignJumpToReach(tr3Lara,
             TR3LaraAnim.JumpForwardStartToGrabEarly, TR3LaraAnim.JumpForwardStartToGrabLate,

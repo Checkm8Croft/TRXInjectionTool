@@ -32,8 +32,14 @@ public abstract class LaraBuilder : InjectionBuilder
         PullUp = 19,
         ShimmyLeft = 30,
         ShimmyRight = 31,
+        PushblockPush = 36,
+        PushblockPull = 37,
+        Pickup = 39,
         Roll = 45,
         Handstand = 54,
+        FastPickup = 99,
+        FastPushblockPull = 100,
+        FastPushblockPush = 101,
     }
 
     protected enum LaraAnim
@@ -61,6 +67,8 @@ public abstract class LaraBuilder : InjectionBuilder
         ReachToHang = 96,
         ClimbOnEnd = 102,
         StandIdle = 103,
+        PushableGrab = 120,
+        Pickup = 135,
         StandDeath = 138,
         RollStart = 146,
         ClimbOnHandstand = 159,
@@ -253,6 +261,11 @@ public abstract class LaraBuilder : InjectionBuilder
         LadderToCrouchStart = 25,
         LadderToCrouchEnd = 26,
         CrouchRollEnd = 27,
+        FastPickup = 28,
+        FastPushblockPull = 29,
+        FastPushblockPush = 30,
+        FastPushblockPullStop = 31,
+        FastPushblockPushStop = 32,
     }
 
     protected enum LaraExtraState
@@ -1151,5 +1164,106 @@ public abstract class LaraBuilder : InjectionBuilder
         }
 
         AddChange(lara, idleLadderAnim, climbToCrawlState, 0, 48, ladderToCrouchStartAnim, 0);
+    }
+
+    protected static void ImportFastPickup(TRModel lara)
+    {
+        var laraExt = GetLaraExtModel();
+        var anim = laraExt.Animations[(int)ExtLaraAnim.FastPickup].Clone();
+        var animIdx = lara.Animations.Count;
+        lara.Animations.Add(anim);
+        anim.NextAnimation = Convert.ToUInt16(LaraAnim.StandStill);
+        anim.StateID = Convert.ToUInt16(LaraState.Pickup);
+
+        // Retain "aha" if present
+        var cmd = lara.Animations[(int)LaraAnim.Pickup].Commands.FirstOrDefault(c => c is TRSFXCommand);
+        if (cmd != null)
+        {
+            var sfxCmd = cmd.Clone() as TRSFXCommand;
+            sfxCmd.FrameNumber = 10;
+            anim.Commands.Add(sfxCmd);
+        }
+
+        foreach (var id in new[] { LaraAnim.StandStill, LaraAnim.StandIdle })
+        {
+            var standAnim = lara.Animations[Convert.ToInt32(id)];
+            var change = standAnim.Changes.First(c => c.StateID == Convert.ToInt32(LaraState.Pickup)).Clone();
+            change.StateID = Convert.ToUInt16(LaraState.FastPickup);
+            change.Dispatches.ForEach(d => d.NextAnimation = (short)animIdx);
+            standAnim.Changes.Add(change);
+        }
+    }
+
+    protected void ImportFastPushPull(TRModel lara, bool enableFootprints = false)
+    {
+        var animMap = new[] {
+            ExtLaraAnim.FastPushblockPull, ExtLaraAnim.FastPushblockPush,
+            ExtLaraAnim.FastPushblockPullStop, ExtLaraAnim.FastPushblockPushStop }
+        .ToDictionary(a => a, _ => 0);
+
+        var laraExt = GetLaraExtModel();
+        foreach (var animId in animMap.Keys.ToList())
+        {
+            var anim = laraExt.Animations[(int)animId].Clone();
+            animMap[animId] = lara.Animations.Count;
+            lara.Animations.Add(anim);
+
+            anim.Commands.OfType<TRSFXCommand>().Where(f => f.SoundID == 17)
+                .ToList().ForEach(f => f.SoundID = WetFeetSFX);
+            if (!enableFootprints)
+            {
+                anim.Commands.RemoveAll(c => c is TRFXCommand);
+            }
+        }
+
+        {
+            var anim = lara.Animations[animMap[ExtLaraAnim.FastPushblockPull]];
+            anim.StateID = (ushort)LaraState.PushblockPull;
+            anim.NextAnimation = (ushort)animMap[ExtLaraAnim.FastPushblockPull];
+            anim.NextFrame = 35;
+            AddChange(anim, LaraState.Stop, 183, 184, animMap[ExtLaraAnim.FastPushblockPullStop], 0);
+            AddChange(lara, LaraAnim.PushableGrab, LaraState.FastPushblockPull,
+                19, 20, animMap[ExtLaraAnim.FastPushblockPull], 0);
+
+            var cmd = anim.Commands.OfType<TRSFXCommand>().First(s => s.SoundID == (short)TR1SFX.LaraBlockPush2);
+            cmd.SoundID = (short)TR1SFX.LaraBlockPull;
+            cmd.FrameNumber = 36;
+
+            anim.Commands.AddRange(new[] { 44, 87, 136, 152 }.Select(f => new TRSFXCommand
+            {
+                FrameNumber = (short)f,
+                SoundID = (short)TR1SFX.BlockSound,
+            }));
+        }
+
+        {
+            var anim = lara.Animations[animMap[ExtLaraAnim.FastPushblockPush]];
+            anim.StateID = (ushort)LaraState.PushblockPush;
+            anim.NextAnimation = (ushort)animMap[ExtLaraAnim.FastPushblockPush];
+            anim.NextFrame = 30;
+            AddChange(anim, LaraState.Stop, 169, 170, animMap[ExtLaraAnim.FastPushblockPushStop], 0);
+            AddChange(lara, LaraAnim.PushableGrab, LaraState.FastPushblockPush,
+                19, 20, animMap[ExtLaraAnim.FastPushblockPush], 0);
+
+            var cmd = anim.Commands.OfType<TRSFXCommand>().First(s => s.SoundID == (short)TR1SFX.LaraBlockPush2);
+            cmd.SoundID = (short)TR1SFX.LaraBlockPush1;
+            cmd.FrameNumber = 30;
+
+            anim.Commands.AddRange(new[] { 38, 92, 136 }.Select(f => new TRSFXCommand
+            {
+                FrameNumber = (short)f,
+                SoundID = (short)TR1SFX.BlockSound,
+            }));
+        }
+
+        foreach (var animId in new[] { ExtLaraAnim.FastPushblockPullStop, ExtLaraAnim.FastPushblockPushStop })
+        {
+            var anim = lara.Animations[animMap[animId]];
+            anim.Commands.Add(new TREmptyHandsCommand());
+            anim.StateID = (ushort)(animId == ExtLaraAnim.FastPushblockPullStop 
+                ? LaraState.PushblockPull : LaraState.PushblockPush);
+            anim.NextAnimation = (ushort)LaraAnim.StandStill;
+            anim.NextFrame = 0;
+        }
     }
 }

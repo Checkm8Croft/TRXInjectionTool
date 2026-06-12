@@ -484,6 +484,8 @@ public class TR1LaraAnimBuilder : LaraBuilder
         ImportLadderToCrouch(tr1Lara, InjAnim.LadderIdle, InjAnim.CrouchIdle, InjState.ClimbToCrawl,
             InjAnim.LadderToCrouchStart, InjAnim.LadderToCrouchEnd);
         AddMinimumJumpDelay(tr1Lara);
+        ImportFastPickup(tr1Lara);
+        ImportFastPushPull(tr1Lara);
 
         return caves;
     }

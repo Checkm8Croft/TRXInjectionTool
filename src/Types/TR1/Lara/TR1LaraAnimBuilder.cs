@@ -189,8 +189,10 @@ public class TR1LaraAnimBuilder : LaraBuilder
     protected override short JumpSFX => (short)TR1SFX.LaraJump;
     protected override short DryFeetSFX => (short)TR1SFX.LaraFeet;
     protected override short WetFeetSFX => (short)TR1SFX.LaraWetFeet;
+    protected override short TreadSFX => (short)TR1SFX.LaraTread;
     protected override short LandSFX => (short)TR1SFX.LaraLand;
     protected override short KneesShuffleSFX => 274;
+    protected override short PoleLoopSFX => 276;
     protected override short ClimbOnSFX => (short)TR1SFX.LaraClimb3;
     protected override short ResponsiveState => (short)InjState.Responsive;
 
@@ -369,6 +371,23 @@ public class TR1LaraAnimBuilder : LaraBuilder
         SprintToRollAlternateEnd = 330,
         LadderToCrouchStart = 331,
         LadderToCrouchEnd = 332,
+        HangCornerLeftOuterStart = 342,
+        HangCornerLeftOuterEnd = 343,
+        HangCornerRightOuterStart = 344,
+        HangCornerRightOuterEnd = 345,
+        HangCornerLeftInnerStart = 346,
+        HangCornerLeftInnerEnd = 347,
+        HangCornerRightInnerStart = 348,
+        HangCornerRightInnerEnd = 349,
+        LadderCornerLeftOuterStart = 350,
+        LadderCornerLeftOuterEnd = 351,
+        LadderCornerRightOuterStart = 352,
+        LadderCornerRightOuterEnd = 353,
+        LadderCornerLeftInnerStart = 354,
+        LadderCornerLeftInnerEnd = 355,
+        LadderCornerRightInnerStart = 356,
+        LadderCornerRightInnerEnd = 357,
+
     };
 
     enum InjState : int
@@ -415,6 +434,40 @@ public class TR1LaraAnimBuilder : LaraBuilder
         MonkeyRoll = 96,
         MonkeyTurnLeft = 97,
         MonkeyTurnRight = 98,
+        ShimmyOuterLeft = 104,
+        ShimmyOuterRight = 105,
+        ShimmyInnerLeft = 106,
+        ShimmyInnerRight = 107,
+
+    };
+
+
+    private static readonly Dictionary<TR4LaraAnim, InjAnim> _cornerAnimMap = new()
+    {
+        [TR4LaraAnim.HangCornerLeftOuterStart] = InjAnim.HangCornerLeftOuterStart,
+        [TR4LaraAnim.HangCornerLeftOuterEnd] = InjAnim.HangCornerLeftOuterEnd,
+        [TR4LaraAnim.HangCornerRightOuterStart] = InjAnim.HangCornerRightOuterStart,
+        [TR4LaraAnim.HangCornerRightOuterEnd] = InjAnim.HangCornerRightOuterEnd,
+        [TR4LaraAnim.HangCornerLeftInnerStart] = InjAnim.HangCornerLeftInnerStart,
+        [TR4LaraAnim.HangCornerLeftInnerEnd] = InjAnim.HangCornerLeftInnerEnd,
+        [TR4LaraAnim.HangCornerRightInnerStart] = InjAnim.HangCornerRightInnerStart,
+        [TR4LaraAnim.HangCornerRightInnerEnd] = InjAnim.HangCornerRightInnerEnd,
+        [TR4LaraAnim.LadderCornerLeftOuterStart] = InjAnim.LadderCornerLeftOuterStart,
+        [TR4LaraAnim.LadderCornerLeftOuterEnd] = InjAnim.LadderCornerLeftOuterEnd,
+        [TR4LaraAnim.LadderCornerRightOuterStart] = InjAnim.LadderCornerRightOuterStart,
+        [TR4LaraAnim.LadderCornerRightOuterEnd] = InjAnim.LadderCornerRightOuterEnd,
+        [TR4LaraAnim.LadderCornerLeftInnerStart] = InjAnim.LadderCornerLeftInnerStart,
+        [TR4LaraAnim.LadderCornerLeftInnerEnd] = InjAnim.LadderCornerLeftInnerEnd,
+        [TR4LaraAnim.LadderCornerRightInnerStart] = InjAnim.LadderCornerRightInnerStart,
+        [TR4LaraAnim.LadderCornerRightInnerEnd] = InjAnim.LadderCornerRightInnerEnd,
+    };
+
+    private static readonly Dictionary<TR4LaraState, InjState> _cornerStateMap = new()
+    {
+        [TR4LaraState.ShimmyOuterLeft] = InjState.ShimmyOuterLeft,
+        [TR4LaraState.ShimmyOuterRight] = InjState.ShimmyOuterRight,
+        [TR4LaraState.ShimmyInnerLeft] = InjState.ShimmyInnerLeft,
+        [TR4LaraState.ShimmyInnerRight] = InjState.ShimmyInnerRight,
     };
 
     public override List<InjectionData> Build()
@@ -425,6 +478,7 @@ public class TR1LaraAnimBuilder : LaraBuilder
             var level = CreateLevel();
             var data = InjectionData.Create(level, InjectionType.LaraAnims, "lara_animations");
             ImportKneesShuffle(data);
+            ImportPoleLoopSFX(data);
             result.Add(data);
         }
         {
@@ -486,6 +540,11 @@ public class TR1LaraAnimBuilder : LaraBuilder
         AddMinimumJumpDelay(tr1Lara);
         ImportFastPickup(tr1Lara);
         ImportFastPushPull(tr1Lara);
+        ImportPlinthPickups(tr1Lara);
+        FixWadeTurnSFX(tr1Lara);
+        SplitPushableEnds(tr1Lara);
+        ImportCornerShimmy(tr1Lara, _cornerAnimMap, _cornerStateMap, InjAnim.LadderIdle);
+        SyncToTR4(tr1Lara);
 
         return caves;
     }
@@ -1066,6 +1125,7 @@ public class TR1LaraAnimBuilder : LaraBuilder
     {
         var tr2Lara = _control2.Read($"Resources/{TR2LevelNames.GW}").Models[TR2Type.Lara];
         FixLadderClimbOnSFX(tr2Lara);
+        FixLadderUpSFX(tr2Lara);
 
         foreach (var (tr2Idx, newIdx) in _ladderAnimMap)
         {

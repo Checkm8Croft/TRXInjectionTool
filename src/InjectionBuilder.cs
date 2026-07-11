@@ -1,4 +1,4 @@
-﻿using System.Drawing;
+using System.Drawing;
 using TRDataControl;
 using TRImageControl;
 using TRImageControl.Packing;
@@ -16,6 +16,7 @@ public abstract class InjectionBuilder
     protected static readonly TR1LevelControl _control1 = new();
     protected static readonly TR2LevelControl _control2 = new();
     protected static readonly TR3LevelControl _control3 = new();
+    protected static readonly TR4LevelControl _control4 = new();
 
     public virtual string ID { get; } = string.Empty;
 
@@ -213,6 +214,35 @@ public abstract class InjectionBuilder
         }
     }
 
+    public static void ResetLevel(TR4Level level, uint texturePageCount = 0)
+    {
+        level.Images.Objects.Images32.Clear();
+        level.Images.Objects.Images16.Clear();
+        level.Images.Rooms.Images32.Clear();
+        level.Images.Rooms.Images16.Clear();
+        level.Images.Bump.Images32.Clear();
+        level.Images.Bump.Images16.Clear();
+
+        for (int i = 0; i < texturePageCount; i++)
+        {
+            level.Images.Objects.Images32.Add(new() { Pixels = new uint[256 * 256] });
+        }
+
+        level.AnimatedTextures.Clear();
+        level.ObjectTextures.Clear();
+        level.Sprites.Clear();
+        level.Models.Clear();
+        level.SoundEffects.Clear();
+        level.SoundSources.Clear();
+        level.Rooms.Clear();
+        level.StaticMeshes.Clear();
+        level.Boxes.Clear();
+        level.Entities.Clear();
+        level.AIEntities.Clear();
+        level.Cameras.Clear();
+        level.Flybys.Clear();
+    }
+
     protected static void CreateModelLevel(TR1Level level, params TR1Type[] types)
     {
         // Remove everything from the level bar the data related to the provided types.
@@ -342,7 +372,7 @@ public abstract class InjectionBuilder
         // Repeat the frames in reverse so the map can close on exit. The open frame is also
         // slightly misaligned, so fix that.
         var anim = caves.Models[TR1Type.Map_M_U].Animations[0];
-        anim.Frames[^1].Rotations[1].Z++;
+        anim.Frames[^1].Rotations[1].Z += TRAngleUtils.FromGame(1);
 
         for (int i = anim.Frames.Count - 2; i >= 0; i--)
         {

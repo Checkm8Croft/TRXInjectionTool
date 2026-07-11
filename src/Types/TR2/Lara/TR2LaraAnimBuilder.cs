@@ -151,8 +151,10 @@ public class TR2LaraAnimBuilder : LaraBuilder
     protected override short JumpSFX => (short)TR2SFX.LaraJump;
     protected override short DryFeetSFX => (short)TR2SFX.LaraFeet;
     protected override short WetFeetSFX => (short)TR2SFX.LaraWetFeet;
+    protected override short TreadSFX => (short)TR2SFX.LaraTread;
     protected override short LandSFX => (short)TR2SFX.LaraLand;
     protected override short KneesShuffleSFX => 376;
+    protected override short PoleLoopSFX => 378;
     protected override short ClimbOnSFX => (short)TR2SFX.LaraClimb3;
     protected override short ResponsiveState => (short)InjState.Responsive;
 
@@ -273,6 +275,23 @@ public class TR2LaraAnimBuilder : LaraBuilder
         SprintToRollAlternateEnd = 330,
         LadderToCrouchStart = 331,
         LadderToCrouchEnd = 332,
+        HangCornerLeftOuterStart = 342,
+        HangCornerLeftOuterEnd = 343,
+        HangCornerRightOuterStart = 344,
+        HangCornerRightOuterEnd = 345,
+        HangCornerLeftInnerStart = 346,
+        HangCornerLeftInnerEnd = 347,
+        HangCornerRightInnerStart = 348,
+        HangCornerRightInnerEnd = 349,
+        LadderCornerLeftOuterStart = 350,
+        LadderCornerLeftOuterEnd = 351,
+        LadderCornerRightOuterStart = 352,
+        LadderCornerRightOuterEnd = 353,
+        LadderCornerLeftInnerStart = 354,
+        LadderCornerLeftInnerEnd = 355,
+        LadderCornerRightInnerStart = 356,
+        LadderCornerRightInnerEnd = 357,
+
     };
 
     enum InjState : int
@@ -305,6 +324,40 @@ public class TR2LaraAnimBuilder : LaraBuilder
         MonkeyRoll = 96,
         MonkeyTurnLeft = 97,
         MonkeyTurnRight = 98,
+        ShimmyOuterLeft = 104,
+        ShimmyOuterRight = 105,
+        ShimmyInnerLeft = 106,
+        ShimmyInnerRight = 107,
+
+    };
+
+
+    private static readonly Dictionary<TR4LaraAnim, InjAnim> _cornerAnimMap = new()
+    {
+        [TR4LaraAnim.HangCornerLeftOuterStart] = InjAnim.HangCornerLeftOuterStart,
+        [TR4LaraAnim.HangCornerLeftOuterEnd] = InjAnim.HangCornerLeftOuterEnd,
+        [TR4LaraAnim.HangCornerRightOuterStart] = InjAnim.HangCornerRightOuterStart,
+        [TR4LaraAnim.HangCornerRightOuterEnd] = InjAnim.HangCornerRightOuterEnd,
+        [TR4LaraAnim.HangCornerLeftInnerStart] = InjAnim.HangCornerLeftInnerStart,
+        [TR4LaraAnim.HangCornerLeftInnerEnd] = InjAnim.HangCornerLeftInnerEnd,
+        [TR4LaraAnim.HangCornerRightInnerStart] = InjAnim.HangCornerRightInnerStart,
+        [TR4LaraAnim.HangCornerRightInnerEnd] = InjAnim.HangCornerRightInnerEnd,
+        [TR4LaraAnim.LadderCornerLeftOuterStart] = InjAnim.LadderCornerLeftOuterStart,
+        [TR4LaraAnim.LadderCornerLeftOuterEnd] = InjAnim.LadderCornerLeftOuterEnd,
+        [TR4LaraAnim.LadderCornerRightOuterStart] = InjAnim.LadderCornerRightOuterStart,
+        [TR4LaraAnim.LadderCornerRightOuterEnd] = InjAnim.LadderCornerRightOuterEnd,
+        [TR4LaraAnim.LadderCornerLeftInnerStart] = InjAnim.LadderCornerLeftInnerStart,
+        [TR4LaraAnim.LadderCornerLeftInnerEnd] = InjAnim.LadderCornerLeftInnerEnd,
+        [TR4LaraAnim.LadderCornerRightInnerStart] = InjAnim.LadderCornerRightInnerStart,
+        [TR4LaraAnim.LadderCornerRightInnerEnd] = InjAnim.LadderCornerRightInnerEnd,
+    };
+
+    private static readonly Dictionary<TR4LaraState, InjState> _cornerStateMap = new()
+    {
+        [TR4LaraState.ShimmyOuterLeft] = InjState.ShimmyOuterLeft,
+        [TR4LaraState.ShimmyOuterRight] = InjState.ShimmyOuterRight,
+        [TR4LaraState.ShimmyInnerLeft] = InjState.ShimmyInnerLeft,
+        [TR4LaraState.ShimmyInnerRight] = InjState.ShimmyInnerRight,
     };
 
     public override List<InjectionData> Build()
@@ -315,6 +368,7 @@ public class TR2LaraAnimBuilder : LaraBuilder
             var level = CreateLevel();
             var data = InjectionData.Create(level, InjectionType.LaraAnims, "lara_animations");
             ImportKneesShuffle(data);
+            ImportPoleLoopSFX(data);
             result.Add(data);
         }
         {
@@ -344,6 +398,7 @@ public class TR2LaraAnimBuilder : LaraBuilder
         ImportIdlePose(tr2Lara, InjState.PoseStart, InjState.PoseEnd, InjState.PoseLeft, InjState.PoseRight);
         FixJumpToFreefall(tr2Lara);
         FixLadderClimbOnSFX(tr2Lara);
+        FixLadderUpSFX(tr2Lara);
         FixHandstandSFX(tr2Lara);
         FixSprintSFX(tr2Lara, InjAnim.RunToSprintLeft, InjAnim.RunToSprintRight);
         ImportCrawling(tr2Lara, _crawlAnimMap, _crawlStateMap);
@@ -367,6 +422,11 @@ public class TR2LaraAnimBuilder : LaraBuilder
         AddMinimumJumpDelay(tr2Lara);
         ImportFastPickup(tr2Lara);
         ImportFastPushPull(tr2Lara);
+        ImportPlinthPickups(tr2Lara);
+        FixWadeTurnSFX(tr2Lara);
+        SplitPushableEnds(tr2Lara);
+        ImportCornerShimmy(tr2Lara, _cornerAnimMap, _cornerStateMap, TR2LaraAnim.LadderIdle);
+        SyncToTR4(tr2Lara);
 
         return wall;
     }
@@ -394,73 +454,6 @@ public class TR2LaraAnimBuilder : LaraBuilder
         var level = CreateLevel();
         var extraLevel = CreateExtraLevel();
         return ExportLaraWAD(level, extraLevel);
-    }
-
-    private static void ImportTR1Jumping(TRModel lara)
-    {
-        var runAnim = lara.Animations[(int)LaraAnim.Run];
-        var jumpChange = runAnim.Changes.FirstOrDefault(c => c.StateID == (ushort)LaraState.JumpForward);
-        var responsiveChange = jumpChange.Clone();
-        runAnim.Changes.Add(responsiveChange);
-        responsiveChange.StateID = (ushort)InjState.Responsive;
-
-        foreach (var dispatch in jumpChange.Dispatches)
-        {
-            if (dispatch.NextAnimation == (short)LaraAnim.RunJumpRightStart)
-            {
-                dispatch.Low = 14;
-                dispatch.High = 15;
-            }
-            else
-            {
-                dispatch.Low = 3;
-                dispatch.High = 4;
-            }
-        }
-    }
-
-    private static void ImportTR1Gliding(TRModel lara)
-    {
-        var swimAnim = lara.Animations[(int)LaraAnim.UnderwaterSwimForward];
-        var glideChange = swimAnim.Changes.FirstOrDefault(c => c.StateID == (ushort)LaraState.Glide);
-        var dispatches = glideChange.Dispatches.Select(d => d.Clone()).ToList();
-        glideChange.Dispatches.RemoveAll(d => d.NextAnimation != (short)LaraAnim.UnderwaterSwimGlide);
-        glideChange.Dispatches.FirstOrDefault(d => d.Low == 0).High = 2;
-
-        swimAnim.Changes.Add(new()
-        {
-            StateID = (ushort)InjState.Responsive,
-            Dispatches = dispatches,
-        });
-
-        dispatches.Sort((d1, d2) => d1.Low.CompareTo(d2.Low));
-    }
-
-    private static void ImproveTwists(TRModel lara)
-    {
-        var laraExt = GetLaraExtModel();
-        lara.Animations[203] = laraExt.Animations[(int)ExtLaraAnim.UWRollStart];
-        lara.Animations[205] = laraExt.Animations[(int)ExtLaraAnim.UWRollEnd];
-        lara.Animations[203].NextAnimation = 205;
-        lara.Animations[203].NextFrame = 1;
-        lara.Animations[205].NextAnimation = 108;
-
-        lara.Animations[207] = laraExt.Animations[(int)ExtLaraAnim.RunJumpRollStart];
-        lara.Animations[209] = laraExt.Animations[(int)ExtLaraAnim.RunJumpRollEnd];
-        lara.Animations[210] = laraExt.Animations[(int)ExtLaraAnim.JumpFwdRollStart];
-        lara.Animations[211] = laraExt.Animations[(int)ExtLaraAnim.JumpFwdRollEnd];
-        lara.Animations[212] = laraExt.Animations[(int)ExtLaraAnim.JumpBackRollStart];
-        lara.Animations[213] = laraExt.Animations[(int)ExtLaraAnim.JumpBackRollEnd];
-
-        lara.Animations[207].NextAnimation = 209;
-        lara.Animations[209].NextAnimation = (ushort)LaraAnim.JumpBack;
-        lara.Animations[209].NextFrame = 39;
-        lara.Animations[210].NextAnimation = 211;
-        lara.Animations[211].NextAnimation = (ushort)LaraAnim.JumpBack;
-        lara.Animations[211].NextFrame = 39;
-        lara.Animations[212].NextAnimation = 213;
-        lara.Animations[213].NextAnimation = (ushort)LaraAnim.JumpForward;
-        lara.Animations[213].NextFrame = 39;
     }
 
     private static void SyncToTR3(TRModel lara)

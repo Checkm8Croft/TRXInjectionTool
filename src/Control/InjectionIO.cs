@@ -12,7 +12,7 @@ public static class InjectionIO
     private static readonly InjectionVersion _version = new()
     {
         Magic = IOUtils.MakeTag('T', 'R', 'X', 'J'),
-        Iteration = 8,
+        Iteration = 9,
     };
 
     public static void Export(InjectionData data, string file)
@@ -140,7 +140,7 @@ public static class InjectionIO
         int blockCount = 0;
 
         blockCount += WriteBlock(BlockType.ObjectTextures, data.ObjectTextures.Count, writer,
-            s => data.ObjectTextures.ForEach(t => s.Write(t.Serialize())));
+            s => data.ObjectTextures.ForEach(t =>t.Serialize(s, data.GameVersion)));
 
         blockCount += WriteBlock(BlockType.SpriteTextures, data.SpriteTextures.Count, writer,
             s => data.SpriteTextures.ForEach(t => s.Write(t.Serialize())));
@@ -158,7 +158,7 @@ public static class InjectionIO
         blockCount += WriteBlock(BlockType.MeshPointers, data.MeshPointers.Count, writer,
             s => s.Write(data.MeshPointers));
 
-        List<byte> meshData = [.. data.Meshes.SelectMany(m => m.Serialize())];
+        List<byte> meshData = [.. data.Meshes.SelectMany(m => m.Serialize(data.GameVersion))];
         blockCount += WriteBlock(BlockType.ObjectMeshes, meshData.Count / 2, writer,
             s => s.Write(meshData));
 
@@ -185,7 +185,7 @@ public static class InjectionIO
             s => s.Write(data.AnimFrames));
 
         blockCount += WriteBlock(BlockType.Animations, data.Animations.Count, writer,
-            s => data.Animations.ForEach(a => s.Write(a.Serialize())));
+            s => data.Animations.ForEach(a => a.Serialize(s, data.GameVersion)));
 
         return blockCount;
     }
@@ -211,8 +211,15 @@ public static class InjectionIO
 
     private static int WriteCameraData(InjectionData data, TRLevelWriter writer)
     {
-        return WriteBlock(BlockType.CinematicFrames, data.CinematicFrames.Count, writer,
+        int blockCount = 0;
+
+        blockCount += WriteBlock(BlockType.CinematicFrames, data.CinematicFrames.Count, writer,
             s => data.CinematicFrames.ForEach(f => s.Write(f.Serialize())));
+
+        blockCount += WriteBlock(BlockType.FlybyCameras, data.FlybyCameras.Count, writer,
+            s => data.FlybyCameras.ForEach(f => s.Write(f.Serialize())));
+
+        return blockCount;
     }
 
     private static int WriteEdits(InjectionData data, TRLevelWriter writer)
@@ -227,6 +234,9 @@ public static class InjectionIO
 
         blockCount += WriteBlock(BlockType.ItemFlagEdits, data.ItemFlagEdits.Count, writer,
             s => data.ItemFlagEdits.ForEach(i => i.Serialize(s, data.GameVersion)));
+
+        blockCount += WriteBlock(BlockType.ItemNameEdits, data.ItemNameEdits.Count, writer,
+            s => data.ItemNameEdits.ForEach(i => i.Serialize(s)));
 
         blockCount += WriteBlock(BlockType.MeshEdits, data.MeshEdits.Count, writer,
             s => data.MeshEdits.ForEach(m => m.Serialize(s, data.GameVersion)));

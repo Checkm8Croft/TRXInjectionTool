@@ -1,4 +1,4 @@
-﻿using System.IO.Compression;
+using System.IO.Compression;
 using TRLevelControl;
 using TRLevelControl.Model;
 using TRXInjectionTool.Types.TR1.Lara;
@@ -8,6 +8,9 @@ using TRXInjectionTool.Types.TR2.Misc;
 using TRXInjectionTool.Types.TR2.Objects;
 using TRXInjectionTool.Types.TR3.Lara;
 using TRXInjectionTool.Types.TR3.Misc;
+using TRXInjectionTool.Types.TR4.Lara;
+using TRXInjectionTool.Types.TR4.Misc;
+using TRXInjectionTool.Types.TRX.Sparks;
 
 namespace TRXInjectionTool.Types;
 
@@ -41,6 +44,11 @@ public static class AssetPublisher
             new TR3PDABuilder(),
             new TR3FishSpritesBuilder(),
             new TR3BatSpritesBuilder(),
+            new SparksBuilder(),
+        ],
+        [TRGameVersion.TR4] =
+        [
+            new TR4FontBuilder(),
         ],
     };
 
@@ -49,6 +57,7 @@ public static class AssetPublisher
         [TRGameVersion.TR1] = false,
         [TRGameVersion.TR2] = false,
         [TRGameVersion.TR3] = false,
+        [TRGameVersion.TR4] = false,
     };
 
     public static void OnBuilderRun(InjectionBuilder builder)
@@ -74,6 +83,7 @@ public static class AssetPublisher
         Publish(TRGameVersion.TR1, new TR1LaraAnimBuilder());
         Publish(TRGameVersion.TR2, new TR2LaraAnimBuilder());
         Publish(TRGameVersion.TR3, new TR3LaraAnimBuilder());
+        Publish(TRGameVersion.TR4, new TR4LaraAnimBuilder());
     }
 
     private static void Publish(TRGameVersion version, LaraBuilder laraBuilder)
@@ -129,9 +139,14 @@ public static class AssetPublisher
             var control = new TR3LevelControl();
             control.Write(level3, ms);
         }
+        else if (level is TR4Level level4)
+        {
+            var control = new TR4LevelControl();
+            control.Write(level4, ms);
+        }
         else
         {
-            throw new ArgumentException("Only TR1-3 levels supported.");
+            throw new ArgumentException("Only TR1-4 levels supported.");
         }
 
         return ms.ToArray();

@@ -15,21 +15,27 @@ internal class Program
 
     static int Main(string[] args)
     {
-        _types = Assembly.GetExecutingAssembly().GetTypes();
+        _types = [
+            .. Assembly.GetExecutingAssembly().GetTypes(),
+            .. PluginLoader.LoadPlugins().SelectMany(a => a.GetTypes()),
+        ];
+
+        foreach (var manifestType in _types.Where(t =>
+            typeof(IBuilderPackManifest).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface))
+        {
+            ((IBuilderPackManifest)Activator.CreateInstance(manifestType)).Register();
+        }
+
         _namespaces = _types
-            .Where(t => t.Namespace != null && t.Namespace.StartsWith(_topNS) && t.Namespace.Length > _topNS.Length)
-            .Select(t => t.Namespace[(_topNS.Length + 1)..])
+            .Where(IsBuilderType)
+            .Select(GetBuilderGroup)
             .Distinct()
             .OrderBy(t => t)
             .ToList();
 
         // Construct builder ID mapping
         _builders = _types
-            .Where(t =>
-                t.IsSubclassOf(typeof(InjectionBuilder)) &&
-                !t.IsAbstract &&
-                t.Namespace != null &&
-                t.Namespace.StartsWith(_topNS))
+            .Where(IsBuilderType)
             .Select(t => new { Type = t, Builder = (InjectionBuilder)Activator.CreateInstance(t) })
             .ToDictionary(x => {
                 var id = x.Builder.ID;
@@ -97,7 +103,7 @@ internal class Program
             {
                 Console.WriteLine(ns);
                 var builders = _types
-                    .Where(t => t.IsSubclassOf(typeof(InjectionBuilder)) && t.Namespace == $"{_topNS}.{ns}");
+                    .Where(t => IsBuilderType(t) && GetBuilderGroup(t) == ns);
                 RunBuilders(builders, usedNames, true);
             }
 
@@ -130,6 +136,16 @@ internal class Program
                 case "-l":
                 case "--list":
                     PrintList();
+                    return 0;
+                case "--write-format-docs":
+                    Format.FormatDocs.Write(args.Last());
+                    return 0;
+                case "--verify-injections":
+                    foreach (var bin in Directory.GetFiles(args.Last(), "*.bin", SearchOption.AllDirectories))
+                    {
+                        Format.InjectionVerifier.Verify(bin);
+                    }
+                    Console.WriteLine("All files verified.");
                     return 0;
                 case "-n":
                 case "--no-publish":
@@ -165,6 +181,40 @@ internal class Program
         return 0;
     }
 
+    // A link that leads nowhere satisfies File.Exists, which reads the link
+    // and not what it points at. Large inputs are often linked in rather than
+    // copied, so the target is followed to its end before it is believed.
+    private static bool ResourceExists(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            return File.ResolveLinkTarget(path, returnFinalTarget: true)?.Exists != false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsBuilderType(Type t)
+    {
+        return t.IsSubclassOf(typeof(InjectionBuilder)) && !t.IsAbstract;
+    }
+
+    // Builders in the host assembly group by their namespace under Types;
+    // plugin builders group under their assembly's name.
+    private static string GetBuilderGroup(Type t)
+    {
+        return t.Namespace != null && t.Namespace.StartsWith(_topNS) && t.Namespace.Length > _topNS.Length
+            ? t.Namespace[(_topNS.Length + 1)..]
+            : t.Assembly.GetName().Name;
+    }
+
     private static void RunBuilders(IEnumerable<Type> builders, HashSet<string> usedNames = null, bool publishAssets = true)
     {
         usedNames ??= new();
@@ -172,6 +222,16 @@ internal class Program
         {
             Console.WriteLine($"\t{type.Name}");
             InjectionBuilder builder = (InjectionBuilder)Activator.CreateInstance(type);
+
+            var missing = builder.RequiredResources.Where(r => !ResourceExists(r)).ToList();
+            if (missing.Count > 0)
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"\t\tSKIPPED: missing {string.Join(", ", missing)}");
+                Console.ResetColor();
+                continue;
+            }
+
             List<InjectionData> dataGroup = builder.Build();
 
             foreach (InjectionData data in dataGroup)

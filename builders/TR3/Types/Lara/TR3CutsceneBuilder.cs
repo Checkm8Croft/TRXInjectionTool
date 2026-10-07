@@ -1,0 +1,382 @@
+using System.Diagnostics;
+using TRImageControl;
+using TRImageControl.Packing;
+using TRLevelControl.Helpers;
+using TRLevelControl.Model;
+using TRXInjectionTool.Actions;
+using TRXInjectionTool.Control;
+using TRXInjectionTool.Util;
+
+namespace TRXInjectionTool.Types.TR3.Lara;
+
+public class TR3CutsceneBuilder : InjectionBuilder
+{
+    private static readonly List<CutSetup> _setups =
+    [
+        new(TR3LevelNames.JUNGLE_CUT, 16384, [TR3Type.CutsceneActor1], postAction: AmendJungleCut),
+        new(TR3LevelNames.RUINS_CUT, 16384, [TR3Type.CutsceneActor1, TR3Type.CutsceneActor8]),
+        new(TR3LevelNames.COASTAL_CUT, 16384, [TR3Type.CutsceneActor1]),
+        new(TR3LevelNames.CRASH_CUT, 16384, []),
+        new(TR3LevelNames.THAMES_CUT, -16384, [TR3Type.CutsceneActor7], postAction: AmendThamesCut),
+        new(TR3LevelNames.ALDWYCH_CUT, 16384, []),
+        new(TR3LevelNames.LUDS_CUT, 16384, [TR3Type.CutsceneActor5], postAction: AmendLudsCut),
+        new(TR3LevelNames.NEVADA_CUT, 16384, []),
+        new(TR3LevelNames.HSC_CUT, 16384, [], postAction: AmendHSCCut),
+        new(TR3LevelNames.ANTARC_CUT, 16384, [TR3Type.CutsceneActor8, TR3Type.CutsceneActor2]),
+        new(TR3LevelNames.TINNOS_CUT, 16384, [TR3Type.CutsceneActor1, TR3Type.CutsceneActor3, TR3Type.CutsceneActor4]),
+    ];
+
+    public override string ID => "tr3_cutscenes";
+
+    public override List<InjectionData> Build()
+    {
+        return
+        [
+            .. _setups.Select(s => s.CreateData()),
+            CreateHSCCineData(),
+        ];
+    }
+
+    private static void AmendJungleCut(InjectionData data)
+    {
+        // Room1 has incorrect portals into room 0 on the south wall (room 0 is north), which can
+        // cause Room_GetSector to loop infinitely.
+        var cut = _control3.Read($"Resources/TR3/{TR3LevelNames.JUNGLE_CUT}");
+        var room1 = cut.Rooms[1];
+        for (ushort x = 9; x < room1.NumXSectors; x++)
+        {
+            for (ushort z = 0; z < 3; z++)
+            {
+                var sector = room1.GetSector(x, z, TRUnit.Sector);
+                if (sector.FDIndex == 0
+                    || !cut.FloorData[sector.FDIndex].Any(e => e is FDPortalEntry p && p.Room == 0))
+                {
+                    continue;
+                }
+
+                data.FloorEdits.Add(new()
+                {
+                    RoomIndex = 1,
+                    X = x,
+                    Z = z,
+                    Fixes = [new FDPortalOverwrite()],
+                });
+            }
+        }
+
+        // Lift the inside of Tony's box off the floor to see the base
+        data.MeshEdits.Add(new()
+        {
+            ModelID = (uint)TR3Type.CutsceneActor1,
+            VertexEdits = [.. Enumerable.Range(0, 9).Select(idx => new TRVertexEdit
+            {
+                Index = (short)idx,
+                Change = new() { Y = -2 },
+            })]
+        });
+    }
+
+    private static void AmendThamesCut(InjectionData data)
+    {
+        // Rooms 18-20 are mostly inside so remove the wind flag to avoid rain there.
+        var cut = _control3.Read($"Resources/TR3/{TR3LevelNames.THAMES_CUT}");
+        data.FloorEdits.AddRange(FDBuilder.RemoveRoomFlags([18,19,20], TRRoomFlag.Wind, cut.Rooms));
+    }
+
+    private static void AmendLudsCut(InjectionData data)
+    {
+        // Prevents Lara walking on thin air.
+        var cut = _control3.Read($"Resources/TR3/{TR3LevelNames.LUDS_CUT}");
+        var faces = new int[] { 0,7,14,18 };
+        data.RoomEdits.AddRange(faces.SelectMany(f => cut.Rooms[0].Mesh.Rectangles[f].Vertices)
+            .Distinct()
+            .Select(v => new TRRoomVertexMove
+            {
+                VertexIndex = v,
+                VertexChange = new() { Y = -1536 },
+            }));
+    }
+
+    private static void AmendHSCCut(InjectionData data)
+    {
+        // Remove the draw guns command from Lara for the drink can, now handled in Lua.
+        data.AnimCommands.Clear();
+        data.Animations[0].NumAnimCommands = 0;
+    }
+
+    // The scene carries the gun flash mesh, but neither the shells the guns
+    // eject nor the glow drawn over the flash. The shell comes from the Jungle
+    // and the glow from Antarctica, which is the level the scene opens.
+    private static TR3Level CreateAntarcticaGunLevel()
+    {
+        var level = _control3.Read($"Resources/TR3/{TR3LevelNames.JUNGLE}");
+        var palette16 = level.Palette16.Select(c => c.ToColor()).ToList();
+        CreateModelLevel(level, TR3Type.YellowShellCasing_H);
+        TRFaceConverter.ConvertFlatFaces(level, palette16);
+
+        var antarc = _control3.Read($"Resources/TR3/{TR3LevelNames.ANTARC}");
+        var glow = antarc.Sprites[TR3Type.Glow_S_H];
+        var regions = new TR3TexturePacker(antarc).GetSpriteRegions(glow)
+            .Values.SelectMany(v => v).ToList();
+
+        var packer = new TR3TexturePacker(level);
+        packer.AddRectangles(regions);
+        packer.Pack(true);
+
+        level.Sprites[TR3Type.Glow_S_H] = glow;
+        GenerateImages8(level, [.. level.Palette.Select(c => c.ToTR1Color())]);
+        return level;
+    }
+
+    private static void AddAntarcticaGunEffects(TR3Level level)
+    {
+        var guns = CreateAntarcticaGunLevel();
+        level.Images16 = guns.Images16;
+        level.Images8 = guns.Images8;
+        level.Palette = guns.Palette;
+        level.ObjectTextures = guns.ObjectTextures;
+        level.Models[TR3Type.YellowShellCasing_H] = guns.Models[TR3Type.YellowShellCasing_H];
+        level.Sprites[TR3Type.Glow_S_H] = guns.Sprites[TR3Type.Glow_S_H];
+    }
+
+    private static InjectionData CreateHSCCineData()
+    {
+        var level = _control3.Read($"Resources/TR3/Lara/hsc_cine_frames.dat");
+        return InjectionData.Create(level, InjectionType.General, "compound_cine");
+    }
+
+    private class CutSetup(string levelName, short laraAngle,
+        List<TR3Type> hideShadowTargets, Action<InjectionData> postAction = null)
+    {
+        private static readonly List<TR3Type> _actors =
+        [
+            TR3Type.Lara, TR3Type.CutsceneActor1, TR3Type.CutsceneActor2, TR3Type.CutsceneActor3,
+            TR3Type.CutsceneActor4, TR3Type.CutsceneActor5, TR3Type.CutsceneActor6,
+            TR3Type.CutsceneActor7, TR3Type.CutsceneActor8, TR3Type.CutsceneActor9,
+        ];
+
+        public string LevelName { get; set; } = new(levelName);
+        public short LaraAngle { get; init; } = laraAngle;
+        public List<TR3Type> HideShadowTargets { get; set; } = hideShadowTargets;
+        public Action<InjectionData> PostAction { get; set; } = postAction;
+
+        public InjectionData CreateData()
+        {
+            var level = _control3.Read($"Resources/TR3/{LevelName}");
+            if (levelName == TR3LevelNames.ANTARC_CUT)
+            {
+                FixBriefcaseFrames(level.Models[TR3Type.CutsceneActor8], level.Models[TR3Type.CutsceneActor2]);
+                HideAntarcticaWillard(level.Models[TR3Type.CutsceneActor2]);
+                AddAntarcticaLaraShot(level.Models[TR3Type.Lara]);
+            }
+
+            var actors = _actors.Where(level.Models.ContainsKey).ToArray();
+            foreach (var type in actors)
+            {
+                var model = level.Models[type];
+                var endAnim = model.Animations[^1];
+                endAnim.NextAnimation = (ushort)(model.Animations.Count - 1);
+                endAnim.NextFrame = (ushort)endAnim.FrameEnd;
+                model.MeshTrees.Clear();
+                model.Meshes.Clear();
+            }
+
+            var laraEdit = RotateLara(level);
+            HideShadows(level);
+
+            if (levelName == TR3LevelNames.LUDS_CUT)
+            {
+                FixLudsLaraFrames(level.Models[TR3Type.Lara]);
+            }
+            else if (levelName == TR3LevelNames.TINNOS_CUT)
+            {
+                FixTinnosFrames(level.Models[TR3Type.CutsceneActor3]);
+            }
+
+            CreateModelLevel(level, actors);
+            level.SoundEffects.Clear();
+            level.Images16.Clear();
+            level.Images8.Clear();
+
+            if (levelName == TR3LevelNames.ANTARC_CUT)
+            {
+                AddAntarcticaGunEffects(level);
+            }
+
+            var data = InjectionData.Create(level, InjectionType.General,
+                $"{Path.GetFileNameWithoutExtension(levelName).ToLower()}_setup");
+            if (laraEdit != null)
+            {
+                data.ItemPosEdits.Add(laraEdit);
+            }
+
+            PostAction?.Invoke(data);
+            return data;
+        }
+
+        private void HideShadows(TR3Level level)
+        {
+            const short shadowOn = 60;
+            const short shadowOff = 61;
+            foreach (var type in HideShadowTargets)
+            {
+                level.Models[type].Animations[0].Commands.Add(new TRFXCommand
+                {
+                    EffectID = shadowOff,
+                    FrameNumber = 1,
+                });
+            }
+
+            if (LevelName == TR3LevelNames.TINNOS_CUT)
+            {
+                // Hide Willard's shadow when he falls into the pit
+                level.Models[TR3Type.CutsceneActor5].Animations[8].Commands.Add(new TRFXCommand
+                {
+                    EffectID = shadowOff,
+                    FrameNumber = 343,
+                });
+                // Spider Willard hidden at the start, unhide when he shows up
+                level.Models[TR3Type.CutsceneActor1].Animations[9].Commands.Add(new TRFXCommand
+                {
+                    EffectID = shadowOn,
+                    FrameNumber = 245,
+                });
+            }
+        }
+
+        private TRItemPosEdit RotateLara(TR3Level level)
+        {
+            var laraIdx = level.Entities.FindIndex(e => e.TypeID == TR3Type.Lara);
+            if (level.Entities[laraIdx].Angle != LaraAngle)
+            {
+                return ItemBuilder.SetAngle(level, (short)laraIdx, LaraAngle);
+            }
+            return null;
+        }
+
+        private static void FixLudsLaraFrames(TRModel lara)
+        {
+            // Avoid Lara being frozen and suddenly coming to life. Texture changes
+            // are done in tandem in AmendLudsCut so Lara isn't floating.
+            var anim = lara.Animations[0];
+            for (int i = 0; i < 50; i++)
+            {
+                anim.Frames[i].OffsetX = 5300;
+                anim.Frames[i].Bounds.MaxX += 919;
+                anim.Frames[i].Bounds.MinX += 919;
+            }
+
+            const int shift = 1439;
+            for (int i = 46; i >= 0; i--)
+            {
+                anim.Frames[96 - i] = anim.Frames[122 + 46 - i].Clone();
+                var frame = anim.Frames[96 - i];
+                frame.OffsetX += shift;
+                frame.Bounds.MaxX += shift;
+                frame.Bounds.MinX += shift;
+                frame.Rotations[14] = new();
+            }
+        }
+
+        private static void FixTinnosFrames(TRModel model)
+        {
+            for (int i = 0; i < model.Animations.Count; i++)
+            {
+                var anim = model.Animations[i];
+                for (int j = 0; j < anim.Frames.Count; j++)
+                {
+                    var frame = anim.Frames[j];
+                    frame.Bounds.MinX = -5000;
+                    frame.Bounds.MaxX = 5000;
+                    if (i == 3 && j < 37)
+                    {                        
+                        frame.Bounds.MinZ = -11000;
+                        frame.Bounds.MaxZ = -7000;
+                        frame.Bounds.MinY = -2560;
+                        frame.Bounds.MaxY = 0;
+                    }
+                    else if (i == 8 && j >= 340)
+                    {
+                        frame.Bounds.MinZ = 7000;
+                        frame.Bounds.MaxZ = 11000;
+                        frame.Bounds.MinY = -2560;
+                        frame.Bounds.MaxY = 0;
+                    }
+                    else
+                    {
+                        frame.Bounds.MinZ = -5000;
+                        frame.Bounds.MaxZ = 5000;
+                    }
+                }
+            }
+        }
+
+        private static void FixBriefcaseFrames(TRModel briefModel, TRModel willModel)
+        {
+            // Resampled from frame rate 4 to 1 to allow tweaking frames below.
+            var data = _control3.Read("Resources/TR3/Lara/antarc_cut_frames.dat");
+            var fixedModel = data.Models[TR3Type.CutsceneActor8];
+            Debug.Assert(fixedModel.Animations.Count == briefModel.Animations.Count);
+            for (int i = 0; i < fixedModel.Animations.Count; i++)
+            {
+                var fixedAnim = fixedModel.Animations[i];
+                var badAnim = briefModel.Animations[i];
+                fixedAnim.Commands = badAnim.Commands;
+                briefModel.Animations[i] = fixedAnim;
+            }
+
+            for (int i = 249; i < 251; i++)
+            {
+                briefModel.Animations[0].Frames[i] = briefModel.Animations[0].Frames[i - 1].Clone();
+            }
+
+            for (int i = 0; i < 82; i++)
+            {
+                briefModel.Animations[1].Frames[i] = briefModel.Animations[1].Frames[i + 1].Clone();
+            }
+
+            for (int i = 516; i < 520; i++)
+            {
+                briefModel.Animations[1].Frames[i] = briefModel.Animations[1].Frames[i - 1].Clone();
+            }
+            briefModel.Animations[1].Frames[520] = briefModel.Animations[1].Frames[521].Clone();
+
+            willModel.Animations[1].Frames[520] = willModel.Animations[1].Frames[519].Clone();
+
+            for (int i = 717; i < 719; i++)
+            {
+                briefModel.Animations[1].Frames[i] = briefModel.Animations[1].Frames[i - 1].Clone();
+                briefModel.Animations[1].Frames[i].OffsetX += 18;
+            }
+            briefModel.Animations[1].Frames[719] = briefModel.Animations[1].Frames[720].Clone();
+        }
+
+        private static void HideAntarcticaWillard(TRModel willard)
+        {
+            willard.Animations[0].Commands.Add(new TRFXCommand
+            {
+                EffectID = (short)TR3FX.HideItem,
+                FrameNumber = 1,
+            });
+            willard.Animations[1].Commands.Add(new TRFXCommand
+            {
+                EffectID = (short)TR3FX.ShowItem,
+            });
+        }
+
+        private static void AddAntarcticaLaraShot(TRModel lara)
+        {
+            // The soundtrack has a second pistol shot 18 frames after the one
+            // the animation fires at frame 682, but the animation has no
+            // recoil for it.
+            foreach (var fx in new[] { TR3FX.ShootRightGun, TR3FX.ShootLeftGun })
+            {
+                lara.Animations[1].Commands.Add(new TRFXCommand
+                {
+                    EffectID = (short)fx,
+                    FrameNumber = 700,
+                });
+            }
+        }
+    }
+}
